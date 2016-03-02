@@ -24,14 +24,8 @@ for t in (:LowerTriangular, :UnitLowerTriangular, :UpperTriangular,
         convert{Tnew,Told,S}(::Type{AbstractMatrix{Tnew}}, A::$t{Told,S}) = convert($t{Tnew}, A)
         convert{T,S}(::Type{Matrix}, A::$t{T,S}) = convert(Matrix{T}, A)
 
-        function similar{T,S,Tnew}(A::$t{T,S}, ::Type{Tnew}, dims::Dims)
-            if length(dims) != 2
-                throw(ArgumentError("Triangular matrix must have two dimensions"))
-            end
-            if dims[1] != dims[2]
-                throw(ArgumentError("Triangular matrix must be square"))
-            end
-            B = similar(A.data, Tnew, dims)
+        function similar{T,S,Tnew}(A::$t{T,S}, ::Type{Tnew})
+            B = similar(A.data, Tnew)
             return $t(B)
         end
 
@@ -1622,8 +1616,8 @@ function eigvecs{T}(A::AbstractTriangular{T})
         throw(ArgumentError("eigvecs type $(typeof(A)) not supported. Please submit a pull request."))
     end
 end
-det{T}(A::UnitUpperTriangular{T}) = one(T)*one(T)
-det{T}(A::UnitLowerTriangular{T}) = one(T)*one(T)
+det{T}(A::UnitUpperTriangular{T}) = one(T)
+det{T}(A::UnitLowerTriangular{T}) = one(T)
 det{T}(A::UpperTriangular{T}) = prod(diag(A.data))
 det{T}(A::LowerTriangular{T}) = prod(diag(A.data))
 

@@ -244,15 +244,22 @@ int jl_has_intrinsics(jl_lambda_info_t *li, jl_expr_t *e, jl_module_t *m)
 {
     if (jl_array_len(e->args) == 0)
         return 0;
-    if (e->head == static_typeof_sym) return 1;
-    jl_value_t *e0 = jl_exprarg(e,0);
+    if (e->head == static_typeof_sym)
+        return 1;
+    jl_value_t *e0 = jl_exprarg(e, 0);
     if (e->head == call_sym) {
-        jl_value_t *sv = jl_static_eval(e0, NULL, m, li, 0, 0);
+        jl_value_t *sv = jl_static_eval(e0, NULL, m, li, li != NULL, 0);
+        if (sv && jl_typeis(sv, jl_intrinsic_type))
+            return 1;
+    }
+    if (0 && e->head == assign_sym && jl_is_gensym(e0)) { // code branch needed for *very-linear-mode*, but not desirable otherwise
+        jl_value_t *e1 = jl_exprarg(e, 1);
+        jl_value_t *sv = jl_static_eval(e1, NULL, m, li, li != NULL, 0);
         if (sv && jl_typeis(sv, jl_intrinsic_type))
             return 1;
     }
     int i;
-    for(i=0; i < jl_array_len(e->args); i++) {
+    for (i=0; i < jl_array_len(e->args); i++) {
         jl_value_t *a = jl_exprarg(e,i);
         if (jl_is_expr(a) && jl_has_intrinsics(li, (jl_expr_t*)a, m))
             return 1;
@@ -703,7 +710,7 @@ jl_value_t *jl_first_argument_datatype(jl_value_t *argtypes)
     return (jl_value_t*)first_arg_datatype(argtypes, 0);
 }
 
-static jl_lambda_info_t *expr_to_lambda(jl_lambda_info_t *f)
+static jl_lambda_info_t *expr_to_lambda(jl_expr_t *f)
 {
     // this occurs when there is a closure being added to an out-of-scope function
     // the user should only do this at the toplevel
@@ -722,10 +729,10 @@ static jl_lambda_info_t *expr_to_lambda(jl_lambda_info_t *f)
         jl_svecset(tvar_syms, i, jl_arrayref(tvar_syms_arr, i));
     }
     // wrap in a LambdaInfo
-    f = jl_new_lambda_info((jl_value_t*)f, tvar_syms, jl_emptysvec, jl_current_module);
-    jl_preresolve_globals(f->ast, f);
+    jl_lambda_info_t *li = jl_new_lambda_info((jl_value_t*)f, tvar_syms, jl_emptysvec, jl_current_module);
+    jl_preresolve_globals(li->ast, li);
     JL_GC_POP();
-    return f;
+    return li;
 }
 
 JL_DLLEXPORT void jl_method_def(jl_svec_t *argdata, jl_lambda_info_t *f, jl_value_t *isstaged)
@@ -738,7 +745,7 @@ JL_DLLEXPORT void jl_method_def(jl_svec_t *argdata, jl_lambda_info_t *f, jl_valu
     JL_GC_PUSH1(&f);
 
     if (!jl_is_lambda_info(f))
-        f = expr_to_lambda(f);
+        f = expr_to_lambda((jl_expr_t*)f);
 
     assert(jl_is_lambda_info(f));
     assert(jl_is_tuple_type(argtypes));

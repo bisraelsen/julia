@@ -964,7 +964,7 @@ end
 
 # Handle block matrices
 A = [randn(2,2) for i = 1:2, j = 1:2]
-@test issym(A.'A)
+@test issymmetric(A.'A)
 A = [complex(randn(2,2), randn(2,2)) for i = 1:2, j = 1:2]
 @test ishermitian(A'A)
 
@@ -1113,6 +1113,15 @@ I2 = CartesianIndex((-1,5,2))
 
 @test min(CartesianIndex((2,3)), CartesianIndex((5,2))) == CartesianIndex((2,2))
 @test max(CartesianIndex((2,3)), CartesianIndex((5,2))) == CartesianIndex((5,3))
+
+# CartesianIndex allows construction at a particular dimensionality
+@test length(CartesianIndex{3}()) == 3
+@test length(CartesianIndex{3}(1,2)) == 3
+@test length(CartesianIndex{3}((1,2))) == 3
+@test length(CartesianIndex{3}(1,2,3)) == 3
+@test length(CartesianIndex{3}((1,2,3))) == 3
+@test_throws DimensionMismatch CartesianIndex{3}(1,2,3,4)
+@test_throws DimensionMismatch CartesianIndex{3}((1,2,3,4))
 
 @test length(I1) == 3
 

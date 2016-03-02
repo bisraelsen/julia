@@ -63,16 +63,34 @@ for elty in (Float32, Float64, Complex64, Complex128, Int)
     @test SymTridiagonal(d, dl) + Tridiagonal(dl, d, du) == Tridiagonal(dl + dl, d+d, dl+du)
     @test convert(SymTridiagonal,Tridiagonal(Ts)) == Ts
     @test full(convert(SymTridiagonal{Complex64},Tridiagonal(Ts))) == convert(Matrix{Complex64},full(Ts))
+    if elty == Int
+        vv = rand(1:100, n)
+        BB = rand(1:100, n, 2)
+    else
+        vv = convert(Vector{elty}, v)
+        BB = convert(Matrix{elty}, B)
+    end
+    let Bs = BB, vs = vv
+        for atype in ("Array", "SubArray")
+            if atype == "Array"
+                BB = Bs
+                vv = vs
+            else
+                BB = sub(Bs, 1:n, 1)
+                vv = sub(vs, 1:n)
+            end
+        end
 
-    # tridiagonal linear algebra
-    @test_approx_eq T*v F*v
-    invFv = F\v
-    @test_approx_eq T\v invFv
-    # @test_approx_eq Base.solve(T,v) invFv
-    # @test_approx_eq Base.solve(T, B) F\B
-    Tlu = factorize(T)
-    x = Tlu\v
-    @test_approx_eq x invFv
+        # tridiagonal linear algebra
+        @test_approx_eq T*vv F*vv
+        invFv = F\vv
+        @test_approx_eq T\vv invFv
+        # @test_approx_eq Base.solve(T,v) invFv
+        # @test_approx_eq Base.solve(T, B) F\B
+        Tlu = factorize(T)
+        x = Tlu\vv
+        @test_approx_eq x invFv
+    end
     @test_approx_eq det(T) det(F)
 
     @test_approx_eq T * Base.LinAlg.UnitUpperTriangular(eye(n)) F*eye(n)
@@ -84,21 +102,37 @@ for elty in (Float32, Float64, Complex64, Complex128, Int)
     if elty <: Real
         Ts = SymTridiagonal(d, dl)
         Fs = full(Ts)
-        invFsv = Fs\v
         Tldlt = factorize(Ts)
-        x = Ts\v
-        @test_approx_eq x invFsv
-        @test_approx_eq full(full(Tldlt)) Fs
         @test_throws DimensionMismatch Tldlt\rand(elty,n+1)
         @test size(Tldlt) == size(Ts)
         if elty <: AbstractFloat
             @test typeof(convert(Base.LinAlg.LDLt{Float32},Tldlt)) == Base.LinAlg.LDLt{Float32,SymTridiagonal{elty}}
         end
+        let vs = vv
+            for atype in ("Array", "SubArray")
+                if atype == "Array"
+                    vv = vs
+                else
+                    vv = sub(vs, 1:n)
+                end
+            end
+            invFsv = Fs\vv
+            x = Ts\vv
+            @test_approx_eq x invFsv
+            @test_approx_eq full(full(Tldlt)) Fs
+        end
+
+        # similar
+        @test isa(similar(Ts), SymTridiagonal{elty})
+        @test isa(similar(Ts, Int), SymTridiagonal{Int})
+        @test isa(similar(Ts, Int, (3,2)), Matrix{Int})
     end
 
     # eigenvalues/eigenvectors of symmetric tridiagonal
     if elty === Float32 || elty === Float64
-        DT, VT = eig(Ts)
+        DT, VT = @inferred eig(Ts)
+        @inferred eig(Ts, 2:4)
+        @inferred eig(Ts, 1.0, 2.0)
         D, Vecs = eig(Fs)
         @test_approx_eq DT D
         @test_approx_eq abs(VT'Vecs) eye(elty, n)
@@ -210,6 +244,14 @@ let n = 12 #Size of matrix problem to test
         @test_throws BoundsError A[1,n+1]
         @test A[1,n] == convert(elty,0.0)
         @test A[1,1] == a[1]
+
+        debug && println("setindex!")
+        @test_throws ArgumentError A[n,1] = 1
+        @test_throws ArgumentError A[1,n] = 1
+        A[3,3] = A[3,3]
+        A[2,3] = A[2,3]
+        A[3,2] = A[3,2]
+        @test A == fA
 
         debug && println("Diagonal extraction")
         @test diag(A,1) == b
@@ -328,9 +370,9 @@ let n = 12 #Size of matrix problem to test
         @test size(B) == size(A)
         copy!(B,A)
         @test B == A
-        @test_throws DimensionMismatch similar(A,(n,n,2))
-        @test_throws DimensionMismatch similar(A,(n+1,n))
-        @test_throws DimensionMismatch similar(A,(n,n+1))
+        @test isa(similar(A), Tridiagonal{elty})
+        @test isa(similar(A, Int), Tridiagonal{Int})
+        @test isa(similar(A, Int, (3,2)), Matrix{Int})
         @test size(A,3) == 1
         @test_throws ArgumentError size(A,0)
 
@@ -395,6 +437,14 @@ let n = 12 #Size of matrix problem to test
         debug && println("getindex")
         @test_throws BoundsError A[n+1,1]
         @test_throws BoundsError A[1,n+1]
+
+        debug && println("setindex!")
+        @test_throws ArgumentError A[n,1] = 1
+        @test_throws ArgumentError A[1,n] = 1
+        A[3,3] = A[3,3]
+        A[2,3] = A[2,3]
+        A[3,2] = A[3,2]
+        @test A == fA
     end
 end
 

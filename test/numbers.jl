@@ -2465,6 +2465,9 @@ end
 @test true*pi === Float64(pi)
 @test pi*true === Float64(pi)
 
+# issue #5492
+@test -0.0 + false === -0.0
+
 # issue #5881
 @test bits(true) == "00000001"
 @test bits(false) == "00000000"
@@ -2710,3 +2713,146 @@ end
 # issue #12536
 @test Rational{Int16}(1,2) === Rational(Int16(1),Int16(2))
 @test Rational{Int16}(500000,1000000) === Rational(Int16(1),Int16(2))
+
+
+rand_int = rand(Int8)
+
+for T in [Int8, Int16, Int32, Int128, BigInt]
+    @test num(convert(T, rand_int)) == rand_int
+    @test den(convert(T, rand_int)) == 1
+
+    @test typemin(Rational{T}) == -one(T)//zero(T)
+    @test typemax(Rational{T}) == one(T)//zero(T)
+    @test widen(Rational{T}) == Rational{widen(T)}
+end
+
+@test Rational(Float32(rand_int)) == Rational(rand_int)
+
+@test Rational(Rational(rand_int)) == Rational(rand_int)
+
+@test begin
+    var = -Rational(UInt32(0))
+    var == UInt32(0)
+end
+
+@test Rational(rand_int, 3)/Complex(3, 2) == Complex(Rational(rand_int, 13), -Rational(rand_int*2, 39))
+
+@test Complex(rand_int, 0) == Rational(rand_int)
+@test Rational(rand_int) == Complex(rand_int, 0)
+
+@test (Complex(rand_int, 4) == Rational(rand_int)) == false
+@test (Rational(rand_int) == Complex(rand_int, 4)) == false
+
+@test trunc(Rational(BigInt(rand_int), BigInt(3))) == Rational(trunc(BigInt, Rational(BigInt(rand_int),BigInt(3))))
+@test  ceil(Rational(BigInt(rand_int), BigInt(3))) == Rational( ceil(BigInt, Rational(BigInt(rand_int),BigInt(3))))
+@test round(Rational(BigInt(rand_int), BigInt(3))) == Rational(round(BigInt, Rational(BigInt(rand_int),BigInt(3))))
+
+
+for a = -3:3
+    @test Rational(Float32(a)) == Rational(a)
+    @test Rational(a)//2 == a//2
+    @test a//Rational(2) == Rational(a/2)
+    @test a.//[-2, -1, 1, 2] == [-a//2, -a//1, a//1, a//2]
+    for b=-3:3, c=1:3
+        @test b//(a+c*im) == b*a//(a^2+c^2)-(b*c//(a^2+c^2))*im
+        for d=-3:3
+            @test (a+b*im)//(c+d*im) == (a*c+b*d+(b*c-a*d)*im)//(c^2+d^2)
+            @test Complex(Rational(a)+b*im)//Complex(Rational(c)+d*im) == Complex(a+b*im)//Complex(c+d*im)
+        end
+    end
+end
+
+# issue #15205
+let T = Rational
+    x = Complex{T}(1//3 + 1//4*im)
+    y = Complex{T}(1//2 + 1//5*im)
+    xf = Complex{Float64}(1//3 + 1//4*im)
+    yf = Complex{Float64}(1//2 + 1//5*im)
+    yi = 4
+
+    @test_approx_eq x^y big(xf)^big(yf)
+    @test_approx_eq x^yi big(xf)^yi
+    @test_approx_eq x^true big(xf)^true
+    @test_approx_eq x^false big(xf)^false
+    @test_approx_eq x^1 big(xf)^1
+end
+
+for Tf = (Float16, Float32, Float64), Ti = (Int16, Int32, Int64)
+    almost_half  = Rational(div(typemax(Ti),Ti(2))  , typemax(Ti))
+    over_half    = Rational(div(typemax(Ti),Ti(2))+one(Ti), typemax(Ti))
+    exactly_half = Rational(one(Ti)  , Ti(2))
+
+    @test round( almost_half) == 0//1
+    @test round(-almost_half) == 0//1
+    @test round(Tf,  almost_half, RoundNearestTiesUp) == 0.0
+    @test round(Tf, -almost_half, RoundNearestTiesUp) == 0.0
+    @test round(Tf,  almost_half, RoundNearestTiesAway) == 0.0
+    @test round(Tf, -almost_half, RoundNearestTiesAway) == 0.0
+
+    @test round( exactly_half) == 0//1 # rounds to closest _even_ integer
+    @test round(-exactly_half) == 0//1 # rounds to closest _even_ integer
+    @test round(Tf,  exactly_half, RoundNearestTiesUp) == 1.0
+    @test round(Tf, -exactly_half, RoundNearestTiesUp) == 0.0
+    @test round(Tf,  exactly_half, RoundNearestTiesAway) == 1.0
+    @test round(Tf, -exactly_half, RoundNearestTiesAway) == -1.0
+
+
+    @test round(over_half) == 1//1
+    @test round(-over_half) == -1//1
+    @test round(Tf,  over_half, RoundNearestTiesUp) == 1.0
+    @test round(Tf,  over_half, RoundNearestTiesAway) == 1.0
+    @test round(Tf, -over_half, RoundNearestTiesUp) == -1.0
+    @test round(Tf, -over_half, RoundNearestTiesAway) == -1.0
+
+    @test round(Tf, 11//2, RoundNearestTiesUp) == 6.0
+    @test round(Tf, -11//2, RoundNearestTiesUp) == -5.0
+    @test round(Tf, 11//2, RoundNearestTiesAway) == 6.0
+    @test round(Tf, -11//2, RoundNearestTiesAway) == -6.0
+
+    @test round(Tf, Ti(-1)//zero(Ti)) == -Inf
+    @test round(Tf, one(1)//zero(Ti)) == Inf
+    @test round(Tf, Ti(-1)//zero(Ti), RoundNearestTiesUp) == -Inf
+    @test round(Tf, one(1)//zero(Ti), RoundNearestTiesUp) == Inf
+    @test round(Tf, Ti(-1)//zero(Ti), RoundNearestTiesAway) == -Inf
+    @test round(Tf, one(1)//zero(Ti), RoundNearestTiesAway) == Inf
+
+    @test round(Tf, zero(Ti)//one(Ti)) == 0
+    @test round(Tf, zero(Ti)//one(Ti), RoundNearestTiesUp) == 0
+    @test round(Tf, zero(Ti)//one(Ti), RoundNearestTiesAway) == 0
+end
+
+let
+    io = IOBuffer()
+    rational1 = Rational(1465, 8593)
+    rational2 = Rational(-4500, 9000)
+    @test sprint(io -> show(io, rational1)) == "1465//8593"
+    @test sprint(io -> show(io, rational2)) == "-1//2"
+    let
+        io1 = IOBuffer()
+        write(io1, rational1)
+        io1.ptr = 1
+        @test read(io1, typeof(rational1)) == rational1
+
+        io2 = IOBuffer()
+        write(io2, rational2)
+        io2.ptr = 1
+        @test read(io2, typeof(rational2)) == rational2
+    end
+end
+
+@test round(11//2) == 6//1 # rounds to closest _even_ integer
+@test round(-11//2) == -6//1 # rounds to closest _even_ integer
+@test round(11//3) == 4//1 # rounds to closest _even_ integer
+@test round(-11//3) == -4//1 # rounds to closest _even_ integer
+
+for T in (Float16, Float32, Float64)
+    @test round(T, true//false) === convert(T, Inf)
+    @test round(T, true//true) === one(T)
+    @test round(T, false//true) === zero(T)
+end
+
+for T in (Int8, Int16, Int32, Int64, Bool)
+    @test_throws DivideError round(T, true//false)
+    @test round(T, true//true) === one(T)
+    @test round(T, false//true) === zero(T)
+end

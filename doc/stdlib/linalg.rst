@@ -65,59 +65,91 @@ Linear algebra functions in Julia are largely implemented by calling functions f
 
    Compute the LU factorization of ``A``\ , such that ``A[p,:] = L*U``\ .
 
-.. function:: lufact(A [,pivot=Val{true}]) -> F
+.. function:: lufact(A [,pivot=Val{true}]) -> F::LU
 
    .. Docstring generated from Julia source
 
-   Compute the LU factorization of ``A``\ . The return type of ``F`` depends on the type of ``A``\ . In most cases, if ``A`` is a subtype ``S`` of AbstractMatrix with an element type ``T`` supporting ``+``\ , ``-``\ , ``*`` and ``/`` the return type is ``LU{T,S{T}}``\ . If pivoting is chosen (default) the element type should also support ``abs`` and ``<``\ . When ``A`` is sparse and have element of type ``Float32``\ , ``Float64``\ , ``Complex{Float32}``\ , or ``Complex{Float64}`` the return type is ``UmfpackLU``\ . Some examples are shown in the table below.
+   Compute the LU factorization of ``A``\ .
 
-   +-------------------------+--------------------------+------------------------------------------------+
-   | Type of input ``A``     | Type of output ``F``     | Relationship between ``F`` and ``A``           |
-   +=========================+==========================+================================================+
-   | :func:`Matrix`          | ``LU``                   | ``F[:L]*F[:U] == A[F[:p], :]``                 |
-   +-------------------------+--------------------------+------------------------------------------------+
-   | :func:`Tridiagonal`     | ``LU{T,Tridiagonal{T}}`` | ``F[:L]*F[:U] == A[F[:p], :]``                 |
-   +-------------------------+--------------------------+------------------------------------------------+
-   | :func:`SparseMatrixCSC` | ``UmfpackLU``            | ``F[:L]*F[:U] == (F[:Rs] .* A)[F[:p], F[:q]]`` |
-   +-------------------------+--------------------------+------------------------------------------------+
+   In most cases, if ``A`` is a subtype ``S`` of ``AbstractMatrix{T}`` with an element type ``T`` supporting ``+``\ , ``-``\ , ``*`` and ``/``\ , the return type is ``LU{T,S{T}}``\ . If pivoting is chosen (default) the element type should also support ``abs`` and ``<``\ .
 
    The individual components of the factorization ``F`` can be accessed by indexing:
 
-   +-------------+-----------------------------------------+--------+--------------------------+---------------+
-   | Component   | Description                             | ``LU`` | ``LU{T,Tridiagonal{T}}`` | ``UmfpackLU`` |
-   +=============+=========================================+========+==========================+===============+
-   | ``F[:L]``   | ``L`` (lower triangular) part of ``LU`` | ✓      | ✓                        | ✓             |
-   +-------------+-----------------------------------------+--------+--------------------------+---------------+
-   | ``F[:U]``   | ``U`` (upper triangular) part of ``LU`` | ✓      | ✓                        | ✓             |
-   +-------------+-----------------------------------------+--------+--------------------------+---------------+
-   | ``F[:p]``   | (right) permutation ``Vector``          | ✓      | ✓                        | ✓             |
-   +-------------+-----------------------------------------+--------+--------------------------+---------------+
-   | ``F[:P]``   | (right) permutation ``Matrix``          | ✓      | ✓                        |               |
-   +-------------+-----------------------------------------+--------+--------------------------+---------------+
-   | ``F[:q]``   | left permutation ``Vector``             |        |                          | ✓             |
-   +-------------+-----------------------------------------+--------+--------------------------+---------------+
-   | ``F[:Rs]``  | ``Vector`` of scaling factors           |        |                          | ✓             |
-   +-------------+-----------------------------------------+--------+--------------------------+---------------+
-   | ``F[:(:)]`` | ``(L,U,p,q,Rs)`` components             |        |                          | ✓             |
-   +-------------+-----------------------------------------+--------+--------------------------+---------------+
+   +-----------+-----------------------------------------+
+   | Component | Description                             |
+   +===========+=========================================+
+   | ``F[:L]`` | ``L`` (lower triangular) part of ``LU`` |
+   +-----------+-----------------------------------------+
+   | ``F[:U]`` | ``U`` (upper triangular) part of ``LU`` |
+   +-----------+-----------------------------------------+
+   | ``F[:p]`` | (right) permutation ``Vector``          |
+   +-----------+-----------------------------------------+
+   | ``F[:P]`` | (right) permutation ``Matrix``          |
+   +-----------+-----------------------------------------+
 
-   +--------------------+--------+--------------------------+---------------+
-   | Supported function | ``LU`` | ``LU{T,Tridiagonal{T}}`` | ``UmfpackLU`` |
-   +====================+========+==========================+===============+
-   | ``/``              | ✓      |                          |               |
-   +--------------------+--------+--------------------------+---------------+
-   | ``\``              | ✓      | ✓                        | ✓             |
-   +--------------------+--------+--------------------------+---------------+
-   | ``cond``           | ✓      |                          | ✓             |
-   +--------------------+--------+--------------------------+---------------+
-   | ``det``            | ✓      | ✓                        | ✓             |
-   +--------------------+--------+--------------------------+---------------+
-   | ``logdet``         | ✓      | ✓                        |               |
-   +--------------------+--------+--------------------------+---------------+
-   | ``logabsdet``      | ✓      | ✓                        |               |
-   +--------------------+--------+--------------------------+---------------+
-   | ``size``           | ✓      | ✓                        |               |
-   +--------------------+--------+--------------------------+---------------+
+   The relationship between ``F`` and ``A`` is
+
+   ``F[:L]*F[:U] == A[F[:p], :]``
+
+   ``F`` further supports the following functions:
+
+   +--------------------+--------+--------------------------+
+   | Supported function | ``LU`` | ``LU{T,Tridiagonal{T}}`` |
+   +====================+========+==========================+
+   | :func:`/`          | ✓      |                          |
+   +--------------------+--------+--------------------------+
+   | :func:`\\`         | ✓      | ✓                        |
+   +--------------------+--------+--------------------------+
+   | :func:`cond`       | ✓      |                          |
+   +--------------------+--------+--------------------------+
+   | :func:`det`        | ✓      | ✓                        |
+   +--------------------+--------+--------------------------+
+   | :func:`logdet`     | ✓      | ✓                        |
+   +--------------------+--------+--------------------------+
+   | :func:`logabsdet`  | ✓      | ✓                        |
+   +--------------------+--------+--------------------------+
+   | :func:`size`       | ✓      | ✓                        |
+   +--------------------+--------+--------------------------+
+
+.. function:: lufact(A::SparseMatrixCSC) -> F::UmfpackLU
+
+   .. Docstring generated from Julia source
+
+   Compute the LU factorization of a sparse matrix ``A``\ .
+
+   For sparse ``A`` with real or complex element type, the return type of ``F`` is ``UmfpackLU{Tv, Ti}``\ , with ``Tv`` = ``Float64`` or ``Complex128`` respectively and ``Ti`` is an integer type (``Int32`` or ``Int64``\ ).
+
+   The individual components of the factorization ``F`` can be accessed by indexing:
+
+   +-------------+-----------------------------------------+
+   | Component   | Description                             |
+   +=============+=========================================+
+   | ``F[:L]``   | ``L`` (lower triangular) part of ``LU`` |
+   +-------------+-----------------------------------------+
+   | ``F[:U]``   | ``U`` (upper triangular) part of ``LU`` |
+   +-------------+-----------------------------------------+
+   | ``F[:p]``   | right permutation ``Vector``            |
+   +-------------+-----------------------------------------+
+   | ``F[:q]``   | left permutation ``Vector``             |
+   +-------------+-----------------------------------------+
+   | ``F[:Rs]``  | ``Vector`` of scaling factors           |
+   +-------------+-----------------------------------------+
+   | ``F[:(:)]`` | ``(L,U,p,q,Rs)`` components             |
+   +-------------+-----------------------------------------+
+
+   The relation between ``F`` and ``A`` is
+
+   ``F[:L]*F[:U] == (F[:Rs] .* A)[F[:p], F[:q]]``
+
+   ``F`` further supports the following functions:
+
+   * :func:`\\`
+   * :func:`cond`
+   * :func:`det`
+
+   ** Implementation note **
+
+   ``lufact(A::SparseMatrixCSC)`` uses the UMFPACK library that is part of SuiteSparse. As this library only supports sparse matrices with ``Float64`` or ``Complex128`` elements, ``lufact`` converts ``A`` into a copy that is of type ``SparseMatrixCSC{Float64}`` or ``SparseMatrixCSC{Complex128}`` as appropriate.
 
 .. function:: lufact!(A) -> LU
 
@@ -391,7 +423,7 @@ Linear algebra functions in Julia are largely implemented by calling functions f
 
    .. Docstring generated from Julia source
 
-   Compute the Bunch-Kaufman [Bunch1977]_ factorization of a real symmetric or complex Hermitian matrix ``A`` and return a ``BunchKaufman`` object. The following functions are available for ``BunchKaufman`` objects: ``size``\ , ``\``\ , ``inv``\ , ``issym``\ , ``ishermitian``\ .
+   Compute the Bunch-Kaufman [Bunch1977]_ factorization of a real symmetric or complex Hermitian matrix ``A`` and return a ``BunchKaufman`` object. The following functions are available for ``BunchKaufman`` objects: ``size``\ , ``\``\ , ``inv``\ , ``issymmetric``\ , ``ishermitian``\ .
 
    .. [Bunch1977] J R Bunch and L Kaufman, Some stable methods for calculating inertia and solving symmetric linear systems, Mathematics of Computation 31:137 (1977), 163-179. `url <http://www.ams.org/journals/mcom/1977-31-137/S0025-5718-1977-0428694-0>`_\ .
 
@@ -586,19 +618,29 @@ Linear algebra functions in Julia are largely implemented by calling functions f
 
    .. Docstring generated from Julia source
 
-   Compute the Singular Value Decomposition (SVD) of ``A`` and return an ``SVD`` object. ``U``\ , ``S``\ , ``V`` and ``Vt`` can be obtained from the factorization ``F`` with ``F[:U]``\ , ``F[:S]``\ , ``F[:V]`` and ``F[:Vt]``\ , such that ``A = U*diagm(S)*Vt``\ . If ``thin`` is ``true``\ , an economy mode decomposition is returned. The algorithm produces ``Vt`` and hence ``Vt`` is more efficient to extract than ``V``\ . The default is to produce a thin decomposition.
+   Compute the singular value decomposition (SVD) of ``A`` and return an ``SVD`` object.
+
+   ``U``\ , ``S``\ , ``V`` and ``Vt`` can be obtained from the factorization ``F`` with ``F[:U]``\ , ``F[:S]``\ , ``F[:V]`` and ``F[:Vt]``\ , such that ``A = U*diagm(S)*Vt``\ . The algorithm produces ``Vt`` and hence ``Vt`` is more efficient to extract than ``V``\ .
+
+   If ``thin=true`` (default), a thin SVD is returned. For a :math:`M \times N` matrix ``A``\ , ``U`` is :math:`M \times M` for a full SVD (``thin=false``\ ) and :math:`M \times \min(M, N)` for a thin SVD.
 
 .. function:: svdfact!(A, [thin=true]) -> SVD
 
    .. Docstring generated from Julia source
 
-   ``svdfact!`` is the same as :func:`svdfact`\ , but saves space by overwriting the input ``A``\ , instead of creating a copy. If ``thin`` is ``true``\ , an economy mode decomposition is returned. The default is to produce a thin decomposition.
+   ``svdfact!`` is the same as :func:`svdfact`\ , but saves space by overwriting the input ``A``\ , instead of creating a copy.
+
+   If ``thin=true`` (default), a thin SVD is returned. For a :math:`M \times N` matrix ``A``\ , ``U`` is :math:`M \times M` for a full SVD (``thin=false``\ ) and :math:`M \times \min(M, N)` for a thin SVD.
 
 .. function:: svd(A, [thin=true]) -> U, S, V
 
    .. Docstring generated from Julia source
 
-   Wrapper around ``svdfact`` extracting all parts the factorization to a tuple. Direct use of ``svdfact`` is therefore generally more efficient. Computes the SVD of ``A``\ , returning ``U``\ , vector ``S``\ , and ``V`` such that ``A == U*diagm(S)*V'``\ . If ``thin`` is ``true``\ , an economy mode decomposition is returned. The default is to produce a thin decomposition.
+   Computes the SVD of ``A``\ , returning ``U``\ , vector ``S``\ , and ``V`` such that ``A == U*diagm(S)*V'``\ .
+
+   If ``thin=true`` (default), a thin SVD is returned. For a :math:`M \times N` matrix ``A``\ , ``U`` is :math:`M \times M` for a full SVD (``thin=false``\ ) and :math:`M \times \min(M, N)` for a thin SVD.
+
+   ``svd`` is a wrapper around :func:`svdfact(A)`\ , extracting all parts of the ``SVD`` factorization to a tuple. Direct use of ``svdfact`` is therefore more efficient.
 
 .. function:: svdvals(A)
 
@@ -610,37 +652,110 @@ Linear algebra functions in Julia are largely implemented by calling functions f
 
    .. Docstring generated from Julia source
 
-   Returns the singular values of ``A``\ , while saving space by overwriting the input.
+   Returns the singular values of ``A``\ , saving space by overwriting the input.
 
 .. function:: svdfact(A, B) -> GeneralizedSVD
 
    .. Docstring generated from Julia source
 
-   Compute the generalized SVD of ``A`` and ``B``\ , returning a ``GeneralizedSVD`` Factorization object ``F``\ , such that ``A = F[:U]*F[:D1]*F[:R0]*F[:Q]'`` and ``B = F[:V]*F[:D2]*F[:R0]*F[:Q]'``\ .
+   Compute the generalized SVD of ``A`` and ``B``\ , returning a ``GeneralizedSVD`` factorization object ``F``\ , such that ``A = F[:U]*F[:D1]*F[:R0]*F[:Q]'`` and ``B = F[:V]*F[:D2]*F[:R0]*F[:Q]'``\ .
+
+   For an M-by-N matrix ``A`` and P-by-N matrix ``B``\ ,
+
+   * ``F[:U]`` is a M-by-M orthogonal matrix,
+   * ``F[:V]`` is a P-by-P orthogonal matrix,
+   * ``F[:Q]`` is a N-by-N orthogonal matrix,
+   * ``F[:R0]`` is a (K+L)-by-N matrix whose rightmost (K+L)-by-(K+L) block is            nonsingular upper block triangular,
+   * ``F[:D1]`` is a M-by-(K+L) diagonal matrix with 1s in the first K entries,
+   * ``F[:D2]`` is a P-by-(K+L) matrix whose top right L-by-L block is diagonal,
+
+   ``K+L`` is the effective numerical rank of the matrix ``[A; B]``\ .
+
+   The entries of ``F[:D1]`` and ``F[:D2]`` are related, as explained in the LAPACK documentation for the `generalized SVD <http://www.netlib.org/lapack/lug/node36.html>`_ and the `xGGSVD3 <http://www.netlib.org/lapack/explore-html/d6/db3/dggsvd3_8f.html>`_ routine which is called underneath (in LAPACK 3.6.0 and newer).
 
 .. function:: svd(A, B) -> U, V, Q, D1, D2, R0
 
    .. Docstring generated from Julia source
 
-   Wrapper around ``svdfact`` extracting all parts the factorization to a tuple. Direct use of ``svdfact`` is therefore generally more efficient. The function returns the generalized SVD of ``A`` and ``B``\ , returning ``U``\ , ``V``\ , ``Q``\ , ``D1``\ , ``D2``\ , and ``R0`` such that ``A = U*D1*R0*Q'`` and ``B = V*D2*R0*Q'``\ .
+   Wrapper around :func:`svdfact(A, B)` extracting all parts of the factorization to a tuple. Direct use of ``svdfact`` is therefore generally more efficient. The function returns the generalized SVD of ``A`` and ``B``\ , returning ``U``\ , ``V``\ , ``Q``\ , ``D1``\ , ``D2``\ , and ``R0`` such that ``A = U*D1*R0*Q'`` and ``B = V*D2*R0*Q'``\ .
 
 .. function:: svdvals(A, B)
 
    .. Docstring generated from Julia source
 
-   Return only the singular values from the generalized singular value decomposition of ``A`` and ``B``\ .
+   Return the generalized singular values from the generalized singular value decomposition of ``A`` and ``B``\ .
 
-.. function:: givens{T}(::T, ::T, ::Integer, ::Integer) -> {Givens, T}
-
-   .. Docstring generated from Julia source
-
-   Computes the tuple ``(G, r) = givens(f, g, i1, i2)`` where ``G`` is a Givens rotation and ``r`` is a scalar such that ``G*x=y`` with ``x[i1]=f``\ , ``x[i2]=g``\ , ``y[i1]=r``\ , and ``y[i2]=0``\ . The cosine and sine of the rotation angle can be extracted from the ``Givens`` type with ``G.c`` and ``G.s`` respectively. The arguments ``f`` and ``g`` can be either ``Float32``\ , ``Float64``\ , ``Complex{Float32}``\ , or ``Complex{Float64}``\ . The ``Givens`` type supports left multiplication ``G*A`` and conjugated transpose right multiplication ``A*G'``\ . The type doesn't have a ``size`` and can therefore be multiplied with matrices of arbitrary size as long as ``i2<=size(A,2)`` for ``G*A`` or ``i2<=size(A,1)`` for ``A*G'``\ .
-
-.. function:: givens{T}(::AbstractArray{T}, ::Integer, ::Integer, ::Integer) -> {Givens, T}
+.. function:: LinAlg.Givens(i1,i2,c,s) -> G
 
    .. Docstring generated from Julia source
 
-   Computes the tuple ``(G, r) = givens(A, i1, i2, col)`` where ``G`` is Givens rotation and ``r`` is a scalar such that ``G*A[:,col]=y`` with ``y[i1]=r``\ , and ``y[i2]=0``\ . The cosine and sine of the rotation angle can be extracted from the ``Givens`` type with ``G.c`` and ``G.s`` respectively. The element type of ``A`` can be either ``Float32``\ , ``Float64``\ , ``Complex{Float32}``\ , or ``Complex{Float64}``\ . The ``Givens`` type supports left multiplication ``G*A`` and conjugated transpose right multiplication ``A*G'``\ . The type doesn't have a ``size`` and can therefore be multiplied with matrices of arbitrary size as long as ``i2<=size(A,2)`` for ``G*A`` or ``i2<=size(A,1)`` for ``A*G'``\ .
+   A Givens rotation linear operator. The fields ``c`` and ``s`` represent the cosine and sine of the rotation angle, respectively. The ``Givens`` type supports left multiplication ``G*A`` and conjugated transpose right multiplication ``A*G'``\ . The type doesn't have a ``size`` and can therefore be multiplied with matrices of arbitrary size as long as ``i2<=size(A,2)`` for ``G*A`` or ``i2<=size(A,1)`` for ``A*G'``\ .
+
+   See also: :func:`givens`
+
+.. function:: givens{T}(f::T, g::T, i1::Integer, i2::Integer) -> (G::Givens, r::T)
+
+   .. Docstring generated from Julia source
+
+   Computes the Givens rotation ``G`` and scalar ``r`` such that for any vector ``x`` where
+
+   .. code-block:: julia
+
+       x[i1] = f
+       x[i2] = g
+
+   the result of the multiplication
+
+   .. code-block:: julia
+
+       y = G*x
+
+   has the property that
+
+   .. code-block:: julia
+
+       y[i1] = r
+       y[i2] = 0
+
+   See also: :class:`LinAlg.Givens`
+
+.. function:: givens(x::AbstractVector, i1::Integer, i2::Integer) -> (G::Givens, r)
+
+   .. Docstring generated from Julia source
+
+   Computes the Givens rotation ``G`` and scalar ``r`` such that the result of the multiplication
+
+   .. code-block:: julia
+
+       B = G*x
+
+   has the property that
+
+   .. code-block:: julia
+
+       B[i1] = r
+       B[i2] = 0
+
+   See also: :class:`LinAlg.Givens`
+
+.. function:: givens(A::AbstractArray, i1::Integer, i2::Integer, j::Integer) -> (G::Givens, r)
+
+   .. Docstring generated from Julia source
+
+   Computes the Givens rotation ``G`` and scalar ``r`` such that the result of the multiplication
+
+   .. code-block:: julia
+
+       B = G*A
+
+   has the property that
+
+   .. code-block:: julia
+
+       B[i1,j] = r
+       B[i2,j] = 0
+
+   See also: :class:`LinAlg.Givens`
 
 .. function:: triu(M)
 
@@ -708,25 +823,14 @@ Linear algebra functions in Julia are largely implemented by calling functions f
 
    Construct a diagonal matrix and place ``v`` on the ``k``\ th diagonal.
 
-.. function:: scale(A, b)
-              scale(b, A)
-
-   .. Docstring generated from Julia source
-
-   Scale an array ``A`` by a scalar ``b``\ , returning a new array.
-
-   If ``A`` is a matrix and ``b`` is a vector, then ``scale(A,b)`` scales each column ``i`` of ``A`` by ``b[i]`` (similar to ``A*diagm(b)``\ ), while ``scale(b,A)`` scales each row ``i`` of ``A`` by ``b[i]`` (similar to ``diagm(b)*A``\ ), returning a new array.
-
-   Note: for large ``A``\ , ``scale`` can be much faster than ``A .* b`` or ``b .* A``\ , due to the use of BLAS.
-
 .. function:: scale!(A, b)
               scale!(b, A)
 
    .. Docstring generated from Julia source
 
-   Scale an array ``A`` by a scalar ``b``\ , similar to :func:`scale` but overwriting ``A`` in-place.
+   Scale an array ``A`` by a scalar ``b`` overwriting ``A`` in-place.
 
-   If ``A`` is a matrix and ``b`` is a vector, then ``scale!(A,b)`` scales each column ``i`` of ``A`` by ``b[i]`` (similar to ``A*diagm(b)``\ ), while ``scale!(b,A)`` scales each row ``i`` of ``A`` by ``b[i]`` (similar to ``diagm(b)*A``\ ), again operating in-place on ``A``\ .
+   If ``A`` is a matrix and ``b`` is a vector, then ``scale!(A,b)`` scales each column ``i`` of ``A`` by ``b[i]`` (similar to ``A*Diagonal(b)``\ ), while ``scale!(b,A)`` scales each row ``i`` of ``A`` by ``b[i]`` (similar to ``Diagonal(b)*A``\ ), again operating in-place on ``A``\ .
 
 .. function:: Tridiagonal(dl, d, du)
 
@@ -978,7 +1082,7 @@ Linear algebra functions in Julia are largely implemented by calling functions f
 
    Computes the solution ``X`` to the Sylvester equation ``AX + XB + C = 0``\ , where ``A``\ , ``B`` and ``C`` have compatible dimensions and ``A`` and ``-B`` have no eigenvalues with equal real part.
 
-.. function:: issym(A) -> Bool
+.. function:: issymmetric(A) -> Bool
 
    .. Docstring generated from Julia source
 

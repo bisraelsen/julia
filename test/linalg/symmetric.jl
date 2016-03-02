@@ -46,15 +46,33 @@ let n=10
 
         debug && println("\ntype of a: ", eltya, "\n")
 
+        # similar
+        @test isa(similar(Symmetric(asym)), Symmetric{eltya})
+        @test isa(similar(Hermitian(asym)), Hermitian{eltya})
+        @test isa(similar(Symmetric(asym), Int), Symmetric{Int})
+        @test isa(similar(Hermitian(asym), Int), Hermitian{Int})
+        @test isa(similar(Symmetric(asym), (3,2)), Matrix{eltya})
+        @test isa(similar(Hermitian(asym), (3,2)), Matrix{eltya})
+        @test isa(similar(Symmetric(asym), Int, (3,2)), Matrix{Int})
+        @test isa(similar(Hermitian(asym), Int, (3,2)), Matrix{Int})
+
         # full
         @test asym == full(Hermitian(asym))
+
+        # parent
+
+        @test asym == parent(Hermitian(asym))
+
+        # getindex
+        @test asym[1,1] == Hermitian(asym)[1,1]
+        @test asym[1,1] == Symmetric(asym)[1,1]
 
         #trace
         @test trace(asym) == trace(Hermitian(asym))
 
-        # issym, ishermitian
+        # issymmetric, ishermitian
         if eltya <: Real
-            @test issym(Symmetric(asym))
+            @test issymmetric(Symmetric(asym))
             @test ishermitian(Symmetric(asym))
         end
         if eltya <: Complex

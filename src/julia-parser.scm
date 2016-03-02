@@ -158,9 +158,6 @@
 
 ;; --- lexer ---
 
-(define special-char?
-  (let ((chrs (string->list "()[]{},;\"`@")))
-    (lambda (c) (memv c chrs))))
 (define (newline? c) (eqv? c #\newline))
 
 (define (skip-to-eol port)
@@ -438,15 +435,15 @@
 (define (next-token port s)
   (aset! s 2 (eq? (skip-ws port whitespace-newline) #t))
   (let ((c (peek-char port)))
-    (cond ((or (eof-object? c) (newline? c))  (read-char port))
+    (cond ((or (eof-object? c) (eqv? c #\newline))  (read-char port))
 
-          ((identifier-start-char? c) (accum-julia-symbol c port))
+          ((identifier-start-char? c)     (accum-julia-symbol c port))
 
-          ((special-char? c)    (read-char port))
+          ((string.find "()[]{},;\"`@" c) (read-char port))
 
-          ((char-numeric? c)    (read-number port #f #f))
+          ((string.find "0123456789" c)   (read-number port #f #f))
 
-          ((eqv? c #\#)         (skip-comment port) (next-token port s))
+          ((eqv? c #\#)                   (skip-comment port) (next-token port s))
 
           ;; . is difficult to handle; it could start a number or operator
           ((and (eqv? c #\.)
@@ -1401,21 +1398,22 @@
   (parse-comma-separated s parse-eq*))
 
 ;; as above, but allows both "i=r" and "i in r"
+(define (parse-iteration-spec s)
+  (let ((r (parse-eq* s)))
+    (cond ((and (pair? r) (eq? (car r) '=))  r)
+          ((eq? r ':)  r)
+          ((and (length= r 4) (eq? (car r) 'comparison)
+                (or (eq? (caddr r) 'in) (eq? (caddr r) '∈)))
+           `(= ,(cadr r) ,(cadddr r)))
+          (else
+           (error "invalid iteration specification")))))
+
 (define (parse-comma-separated-iters s)
   (let loop ((ranges '()))
-    (let ((r (parse-eq* s)))
-      (let ((r (cond ((and (pair? r) (eq? (car r) '=))
-                      r)
-                     ((eq? r ':)
-                      r)
-                     ((and (length= r 4) (eq? (car r) 'comparison)
-                           (or (eq? (caddr r) 'in) (eq? (caddr r) '∈)))
-                      `(= ,(cadr r) ,(cadddr r)))
-                     (else
-                      (error "invalid iteration specification")))))
-        (case (peek-token s)
-          ((#\,)  (take-token s) (loop (cons r ranges)))
-          (else   (reverse! (cons r ranges))))))))
+    (let ((r (parse-iteration-spec s)))
+      (case (peek-token s)
+        ((#\,)  (take-token s) (loop (cons r ranges)))
+        (else   (reverse! (cons r ranges)))))))
 
 (define (parse-space-separated-exprs s)
   (with-space-sensitive
@@ -1471,6 +1469,9 @@
                        (loop (cons nxt lst)))
                       ((eqv? c #\;)     (loop (cons nxt lst)))
                       ((eqv? c closer)  (loop (cons nxt lst)))
+                      ((eq? c 'for)
+                       (take-token s)
+                       (loop (cons (parse-generator s nxt) lst)))
                       ;; newline character isn't detectable here
                       #;((eqv? c #\newline)
                       (error "unexpected line break in argument list"))
@@ -1515,7 +1516,7 @@
 (define (parse-comprehension s first closer)
   (let ((r (parse-comma-separated-iters s)))
     (if (not (eqv? (require-token s) closer))
-        (error (string "expected " closer))
+        (error (string "expected \"" closer "\""))
         (take-token s))
     `(comprehension ,first ,@r)))
 
@@ -1524,6 +1525,9 @@
     (if (dict-literal? (cadr c))
         `(dict_comprehension ,@(cdr c))
         (error "invalid dict comprehension"))))
+
+(define (parse-generator s first)
+  `(generator ,first ,@(parse-comma-separated-iters s)))
 
 (define (parse-matrix s first closer gotnewline)
   (define (fix head v) (cons head (reverse v)))
@@ -1874,31 +1878,32 @@
           ((eq? t '|'|)
            (take-token s)
            (let ((firstch (read-char (ts:port s))))
-             (if (eqv? firstch #\')
-                 (error "invalid character literal")
-                 (if (and (not (eqv? firstch #\\))
-                          (not (eof-object? firstch))
-                          (eqv? (peek-char (ts:port s)) #\'))
-                     ;; easy case: 1 character, no \
-                     (begin (read-char (ts:port s)) firstch)
-                     (let ((b (open-output-string)))
-                       (let loop ((c firstch))
-                         (if (eqv? c #\')
-                             #t
-                             (begin (write-char (not-eof-1 c) b)
-                                    (if (eqv? c #\\)
-                                        (write-char
-                                         (not-eof-1 (read-char (ts:port s))) b))
-                                    (loop (read-char (ts:port s))))))
-                       (let ((str (unescape-string (io.tostring! b))))
-                         (if (= (length str) 1)
-                             ;; one byte, e.g. '\xff'. maybe not valid UTF-8, but we
-                             ;; want to use the raw value as a codepoint in this case.
-                             (wchar (aref str 0))
-                             (if (or (not (= (string-length str) 1))
-                                     (not (string.isutf8 str)))
-                                 (error "invalid character literal")
-                                 (string.char str 0)))))))))
+               (if (and (not (eqv? firstch #\\))
+                        (not (eof-object? firstch))
+                        (eqv? (peek-char (ts:port s)) #\'))
+                   ;; easy case: 1 character, no \
+                   (begin (read-char (ts:port s)) firstch)
+                   (let ((b (open-output-string)))
+                     (let loop ((c firstch))
+                       (if (eqv? c #\')
+                           #t
+                           (begin (if (eqv? c #\")
+                                      (error "invalid character literal") ;; issue 14683
+                                      #t)
+                                  (write-char (not-eof-1 c) b)
+                                  (if (eqv? c #\\)
+                                      (write-char
+                                       (not-eof-1 (read-char (ts:port s))) b))
+                                      (loop (read-char (ts:port s))))))
+                     (let ((str (unescape-string (io.tostring! b))))
+                       (if (= (length str) 1)
+                           ;; one byte, e.g. '\xff'. maybe not valid UTF-8, but we
+                           ;; want to use the raw value as a codepoint in this case.
+                           (wchar (aref str 0))
+                           (if (or (not (= (string-length str) 1))
+                                   (not (string.isutf8 str)))
+                               (error "invalid character literal")
+                               (string.char str 0))))))))
 
           ;; symbol/expression quote
           ((eq? t ':)
@@ -1952,6 +1957,13 @@
                             `(tuple ,ex)
                             ;; value in parentheses (x)
                             ex))
+                       ((eq? t 'for)
+                        (take-token s)
+                        (let ((gen (parse-generator s ex)))
+                          (if (eqv? (require-token s) #\) )
+                              (take-token s)
+                              (error "expected \")\""))
+                          gen))
                        (else
                         ;; tuple (x,) (x,y) (x...) etc.
                         (if (eqv? t #\, )

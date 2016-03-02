@@ -343,3 +343,9 @@ end
 @test_throws BoundsError parse("x = 1", 0)
 @test_throws BoundsError parse("x = 1", -1)
 @test_throws BoundsError parse("x = 1", 7)
+
+# issue #14683
+@test_throws ParseError parse("'\\A\"'")
+@test parse("'\"'") == parse("'\\\"'") == '"' == "\""[1] == '\42'
+
+@test_throws ParseError parse("f(2x for x=1:10, y")

@@ -30,8 +30,10 @@ function SymTridiagonal(A::AbstractMatrix)
 end
 
 full{T}(M::SymTridiagonal{T}) = convert(Matrix{T}, M)
-convert{T}(::Type{SymTridiagonal{T}}, S::SymTridiagonal) = SymTridiagonal(convert(Vector{T}, S.dv), convert(Vector{T}, S.ev))
-convert{T}(::Type{AbstractMatrix{T}}, S::SymTridiagonal) = SymTridiagonal(convert(Vector{T}, S.dv), convert(Vector{T}, S.ev))
+convert{T}(::Type{SymTridiagonal{T}}, S::SymTridiagonal) =
+    SymTridiagonal(convert(Vector{T}, S.dv), convert(Vector{T}, S.ev))
+convert{T}(::Type{AbstractMatrix{T}}, S::SymTridiagonal) =
+    SymTridiagonal(convert(Vector{T}, S.dv), convert(Vector{T}, S.ev))
 function convert{T}(::Type{Matrix{T}}, M::SymTridiagonal{T})
     n = size(M, 1)
     Mf = zeros(T, n, n)
@@ -57,6 +59,8 @@ function size(A::SymTridiagonal, d::Integer)
         return 1
     end
 end
+
+similar{T}(S::SymTridiagonal, ::Type{T}) = SymTridiagonal{T}(similar(S.dv, T), similar(S.ev, T))
 
 #Elementary operations
 for func in (:conj, :copy, :round, :trunc, :floor, :ceil, :abs, :real, :imag)
@@ -119,22 +123,44 @@ end
 (\)(T::SymTridiagonal, B::StridedVecOrMat) = ldltfact(T)\B
 
 eigfact!{T<:BlasReal}(A::SymTridiagonal{T}) = Eigen(LAPACK.stegr!('V', A.dv, A.ev)...)
-eigfact{T}(A::SymTridiagonal{T}) = (S = promote_type(Float32, typeof(zero(T)/norm(one(T)))); eigfact!(S != T ? convert(SymTridiagonal{S}, A) : copy(A)))
+function eigfact{T}(A::SymTridiagonal{T})
+    S = promote_type(Float32, typeof(zero(T)/norm(one(T))))
+    eigfact!(copy_oftype(A, S))
+end
 
-eigfact!{T<:BlasReal}(A::SymTridiagonal{T}, irange::UnitRange) = Eigen(LAPACK.stegr!('V', 'I', A.dv, A.ev, 0.0, 0.0, irange.start, irange.stop)...)
-eigfact{T}(A::SymTridiagonal{T}, irange::UnitRange) = (S = promote_type(Float32, typeof(zero(T)/norm(one(T)))); eigfact!(S != T ? convert(SymTridiagonal{S}, A) : copy(A), irange))
+eigfact!{T<:BlasReal}(A::SymTridiagonal{T}, irange::UnitRange) =
+    Eigen(LAPACK.stegr!('V', 'I', A.dv, A.ev, 0.0, 0.0, irange.start, irange.stop)...)
+function eigfact{T}(A::SymTridiagonal{T}, irange::UnitRange)
+    S = promote_type(Float32, typeof(zero(T)/norm(one(T))))
+    return eigfact!(copy_oftype(A, S), irange)
+end
 
-eigfact!{T<:BlasReal}(A::SymTridiagonal{T}, vl::Real, vu::Real) = Eigen(LAPACK.stegr!('V', 'V', A.dv, A.ev, vl, vu, 0, 0)...)
-eigfact{T}(A::SymTridiagonal{T}, vl::Real, vu::Real) = (S = promote_type(Float32, typeof(zero(T)/norm(one(T)))); eigfact!(S != T ? convert(SymTridiagonal{S}, A) : copy(A), vl, vu))
+eigfact!{T<:BlasReal}(A::SymTridiagonal{T}, vl::Real, vu::Real) =
+    Eigen(LAPACK.stegr!('V', 'V', A.dv, A.ev, vl, vu, 0, 0)...)
+function eigfact{T}(A::SymTridiagonal{T}, vl::Real, vu::Real)
+    S = promote_type(Float32, typeof(zero(T)/norm(one(T))))
+    return eigfact!(copy_oftype(A, S), vl, vu)
+end
 
 eigvals!{T<:BlasReal}(A::SymTridiagonal{T}) = LAPACK.stev!('N', A.dv, A.ev)[1]
-eigvals{T}(A::SymTridiagonal{T}) = (S = promote_type(Float32, typeof(zero(T)/norm(one(T)))); eigvals!(S != T ? convert(SymTridiagonal{S}, A) : copy(A)))
+function eigvals{T}(A::SymTridiagonal{T})
+    S = promote_type(Float32, typeof(zero(T)/norm(one(T))))
+    return eigvals!(copy_oftype(A, S))
+end
 
-eigvals!{T<:BlasReal}(A::SymTridiagonal{T}, irange::UnitRange) = LAPACK.stegr!('N', 'I', A.dv, A.ev, 0.0, 0.0, irange.start, irange.stop)[1]
-eigvals{T}(A::SymTridiagonal{T}, irange::UnitRange) = (S = promote_type(Float32, typeof(zero(T)/norm(one(T)))); eigvals!(S != T ? convert(SymTridiagonal{S}, A) : copy(A), irange))
+eigvals!{T<:BlasReal}(A::SymTridiagonal{T}, irange::UnitRange) =
+    LAPACK.stegr!('N', 'I', A.dv, A.ev, 0.0, 0.0, irange.start, irange.stop)[1]
+function eigvals{T}(A::SymTridiagonal{T}, irange::UnitRange)
+    S = promote_type(Float32, typeof(zero(T)/norm(one(T))))
+    return eigvals!(copy_oftype(A, S), irange)
+end
 
-eigvals!{T<:BlasReal}(A::SymTridiagonal{T}, vl::Real, vu::Real) = LAPACK.stegr!('N', 'V', A.dv, A.ev, vl, vu, 0, 0)[1]
-eigvals{T}(A::SymTridiagonal{T}, vl::Real, vu::Real) = (S = promote_type(Float32, typeof(zero(T)/norm(one(T)))); eigvals!(S != T ? convert(SymTridiagonal{S}, A) : copy(A), vl, vu))
+eigvals!{T<:BlasReal}(A::SymTridiagonal{T}, vl::Real, vu::Real) =
+    LAPACK.stegr!('N', 'V', A.dv, A.ev, vl, vu, 0, 0)[1]
+function eigvals{T}(A::SymTridiagonal{T}, vl::Real, vu::Real)
+    S = promote_type(Float32, typeof(zero(T)/norm(one(T))))
+    return eigvals!(copy_oftype(A, S), vl, vu)
+end
 
 #Computes largest and smallest eigenvalue
 eigmax(A::SymTridiagonal) = eigvals(A, size(A, 1):size(A, 1))[1]
@@ -270,6 +296,16 @@ function getindex{T}(A::SymTridiagonal{T}, i::Integer, j::Integer)
     end
 end
 
+function setindex!(A::SymTridiagonal, x, i::Integer, j::Integer)
+    if i == j
+        A.dv[i] = x
+    elseif abs(i - j) == 1
+        A.ev[min(i,j)] = x
+    else
+        throw(ArgumentError("cannot set elements outside the sub, main, or super diagonals"))
+    end
+end
+
 ## Tridiagonal matrices ##
 immutable Tridiagonal{T} <: AbstractMatrix{T}
     dl::Vector{T}    # sub-diagonal
@@ -327,11 +363,8 @@ function convert{T}(::Type{Matrix{T}}, M::Tridiagonal{T})
     A
 end
 convert{T}(::Type{Matrix}, M::Tridiagonal{T}) = convert(Matrix{T}, M)
-function similar(M::Tridiagonal, T, dims::Dims)
-    if length(dims) != 2 || dims[1] != dims[2]
-        throw(DimensionMismatch("Tridiagonal matrices must be square"))
-    end
-    Tridiagonal{T}(similar(M.dl), similar(M.d), similar(M.du), similar(M.du2))
+function similar{T}(M::Tridiagonal, ::Type{T})
+    Tridiagonal{T}(similar(M.dl, T), similar(M.d, T), similar(M.du, T), similar(M.du2, T))
 end
 
 # Operations on Tridiagonal matrices
@@ -381,6 +414,17 @@ function getindex{T}(A::Tridiagonal{T}, i::Integer, j::Integer)
     end
 end
 
+function setindex!(A::Tridiagonal, x, i::Integer, j::Integer)
+    if i == j
+        A.d[i] = x
+    elseif i - j == 1
+        A.dl[j] = x
+    elseif j - i == 1
+        A.du[i] = x
+    else
+        throw(ArgumentError("cannot set elements outside the sub, main, or super diagonals"))
+    end
+end
 
 ## structured matrix methods ##
 function Base.replace_in_print_matrix(A::Tridiagonal,i::Integer,j::Integer,s::AbstractString)

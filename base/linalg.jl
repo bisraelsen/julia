@@ -9,7 +9,7 @@ import Base: USE_BLAS64, abs, big, ceil, conj, convert, copy, copy!, copy_transp
     ctranspose, ctranspose!, eltype, eye, findmax, findmin, fill!, floor, full, getindex,
     imag, inv, isapprox, kron, ndims, parent, power_by_squaring, print_matrix,
     promote_rule, real, round, setindex!, show, similar, size, transpose, transpose!,
-    trunc, unsafe_getindex, unsafe_setindex!
+    trunc
 using Base: promote_op, MulFun
 
 export
@@ -82,7 +82,7 @@ export
     ishermitian,
     isposdef,
     isposdef!,
-    issym,
+    issymmetric,
     istril,
     istriu,
     kron,
@@ -107,10 +107,10 @@ export
     qr,
     qrfact!,
     qrfact,
+    lq,
     lqfact!,
     lqfact,
     rank,
-    scale,
     scale!,
     schur,
     schurfact!,
